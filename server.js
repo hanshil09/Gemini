@@ -43,8 +43,9 @@ Once all information is collected:
 - Politely refuse answering any question outside fitness domain.
 `;
 
+
 app.post('/chat', async (req, res) => {
-    const {message, caloriesHistory} = req.body;fl
+    const {message, caloriesHistory} = req.body;
     if(!message) {
         return res.status(400).json({error: 'Message is required'});
     }
@@ -52,11 +53,14 @@ app.post('/chat', async (req, res) => {
     let fullPrompt = SYSTEM_PROMPT;;
   
 
-if(caloriesHistory){
-    fullPrompt=`The user's reported calorie intake today is ${caloriesHistory} kcal.\n`;
+  // If calories history provided, add that context into prompt
+  if (caloriesHistory) {
+    fullPrompt += `\nUser reported calorie intake today: ${caloriesHistory} kcal.\n`;
+  }
 
-}
- fullPrompt = SYSTEM_PROMPT + `\nUser: ${message}\n`;
+  // Append user's message
+  fullPrompt += `\nUser: ${message}\n`;
+
 try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
