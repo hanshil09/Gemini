@@ -164,6 +164,12 @@ Beginner fitness tips:
 
 try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-chat" });
+    // ✅ FIX: Ensure first message is from user
+  const chatHistory = [...session.history];
+  if (chatHistory[0].role === "system") {
+    // Insert dummy user message first
+    chatHistory.unshift({ role: "user", parts: "Hello" });
+  }
     const chat = model.startChat({ history: session.history });
     const result = await chat.sendMessage(message);
     const reply = result.response.text() || "No response from Gemini.";
