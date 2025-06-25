@@ -48,75 +48,73 @@ function isUserInfoComplete(info) {
 }
 
 app.post('/chat', async (req, res) => {
-  const { message, sessionId = 'default', caloriesHistory } = req.body;
+    const {message, sessionId = 'default',caloriesHistory} = req.body;
 
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required' });
-  }
+    if(!message) {
+        return res.status(400).json({error: 'Message is required'});
+    }
 
-  // Initialize session if it doesn't exist
   if (!sessions[sessionId]) {
-    sessions[sessionId] = {
+  sessions[sessionId] = {
       history: [
-        { role: "user", parts: "Hello" },
-        { role: "model", parts: "Hi! I'm your fitness and nutrition coach. Let's get started." }
+        { role: "system", parts: BASE_SYSTEM_PROMPT }
       ],
       userInfo: {}
     };
-  }
-
-  const session = sessions[sessionId];
-
-  // Handle onboarding questions
-  if (!isUserInfoComplete(session.userInfo)) {
+  };
+    
+    const session = sessions[sessionId];
+    if (!isUserInfoComplete(session.userInfo)) {
     // Try to extract key-value data from the message
     const userInfo = session.userInfo;
-    const words = message.trim().split(/\s+/);
+const words = message.trim().split(/\s+/);
 
-    if (!userInfo.name) {
-      for (const word of words) {
-        if (/^[A-Z][a-z]+$/.test(word) && !['Male', 'Female', 'Other'].includes(word)) {
-          userInfo.name = word;
-          break;
-        }
-      }
+if (!userInfo.name) {
+  for (const word of words) {
+    if (/^[A-Z][a-z]+$/.test(word) && !['Male', 'Female', 'Other'].includes(word)) {
+      userInfo.name = word;
+      break;
     }
+  }
+}
 
-    if (!userInfo.gender) {
-      const genderMatch = message.match(/\b(male|female|other)\b/i);
-      if (genderMatch) userInfo.gender = genderMatch[1];
-    }
+if (!userInfo.gender) {
+  const genderMatch = message.match(/\b(male|female|other)\b/i);
+  if (genderMatch) userInfo.gender = genderMatch[1];
+}
 
-    if (!userInfo.age) {
-      const ageMatch = message.match(/(\d{1,3})\s*(years?\s*old)?/i);
-      if (ageMatch) {
-        const age = parseInt(ageMatch[1]);
-        if (age >= 5 && age <= 120) userInfo.age = age;
-      }
-    }
+if (!userInfo.age) {
+  const ageMatch = message.match(/(\d{1,3})\s*(years?\s*old)?/i);
+  if (ageMatch) {
+    const age = parseInt(ageMatch[1]);
+    if (age >= 5 && age <= 120) userInfo.age = age;
+  }
+}
 
-    if (!userInfo.height) {
-      const heightMatch = message.match(/(\d{2,3})\s*cm/i);
-      if (heightMatch) userInfo.height = parseInt(heightMatch[1]);
-    }
+if (!userInfo.height) {
+  const heightMatch = message.match(/(\d{2,3})\s*cm/i);
+  if (heightMatch) userInfo.height = parseInt(heightMatch[1]);
+}
 
-    if (!userInfo.weight) {
-      const weightMatch = message.match(/(\d{2,3})\s*kg/i);
-      if (weightMatch) userInfo.weight = parseInt(weightMatch[1]);
-    }
+if (!userInfo.weight) {
+  const weightMatch = message.match(/(\d{2,3})\s*kg/i);
+  if (weightMatch) userInfo.weight = parseInt(weightMatch[1]);
+}
 
-    const missing = ONBOARDING_QUESTIONS.filter(q => {
-      if (q.includes("name")) return !session.userInfo.name;
-      if (q.includes("gender")) return !session.userInfo.gender;
-      if (q.includes("age")) return !session.userInfo.age;
-      if (q.includes("height")) return !session.userInfo.height;
-      if (q.includes("weight")) return !session.userInfo.weight;
+    
+    const missing = ONBOARDING_QUESTIONS.filter(q =>{
+      if (q.includes("name"))return !sessions[sessionId].userInfo.name;
+      if (q.includes("gender"))return !sessions[sessionId].userInfo.gender;
+      if (q.includes("age"))return !sessions[sessionId].userInfo.age;
+      if (q.includes("height"))return !sessions[sessionId].userInfo.height;
+      if (q.includes("weight"))return !sessions[sessionId].userInfo.weight;
       return false;
-    });
 
-    if (missing.length > 0) {
+      });
+      if (missing.length > 0) {
       return res.json({ reply: missing[0] });
     } else {
+      
       const { name, gender, age, height, weight } = session.userInfo;
       const hMeters = parseFloat(height) / 100;
       const bmi = (parseFloat(weight) / (hMeters * hMeters)).toFixed(1);
@@ -142,13 +140,19 @@ Beginner fitness tips:
 - Bodyweight squats (2 sets of 10)
 - Light stretching or yoga`;
 
-      session.history.push({ role: "user", parts: message });
+      const hasUserMessage = session.history.some(msg => msg.role === "user");
+      if (!hasUserMessage) {
+        session.history.push({ role: "user", parts: "Hi" }); // Dummy user message to satisfy Gemini
+      }
       session.history.push({ role: "model", parts: intro });
       return res.json({ reply: intro });
     }
+
   }
 
-  // If calories history provided, add that context
+
+
+  // If calories history provided, add that context into prompt
   if (caloriesHistory) {
     session.history.push({
       role: "user",
@@ -156,32 +160,27 @@ Beginner fitness tips:
     });
   }
 
-  // Add the user's message to the history
   session.history.push({ role: "user", parts: message });
 
-  try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-chat",
-      systemInstruction: BASE_SYSTEM_PROMPT // Include system prompt here
-    });
+try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-chat" });
 
-    // Ensure the history starts with a user message
-    const chatHistory = [...session.history];
-    if (chatHistory.length === 0 || chatHistory[0].role !== "user") {
-      chatHistory.unshift({ role: "user", parts: "Hello" });
-    }
-
-    const chat = model.startChat({ history: chatHistory });
+  const chatHistory = [...session.history];
+  if (chatHistory[0].role === "system") {
+    
+    chatHistory.unshift({ role: "user", parts: "Hello" });
+  }
+    const chat = model.startChat({ history: session.history });
     const result = await chat.sendMessage(message);
     const reply = result.response.text() || "No response from Gemini.";
 
-    // Add the model's response to the history
     session.history.push({ role: "model", parts: reply });
     res.json({ reply });
   } catch (error) {
     console.error("Error from Gemini API:", error);
     res.status(500).json({ error: "Failed to get response from Gemini." });
   }
+
 });
 
 
