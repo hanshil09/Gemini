@@ -140,6 +140,10 @@ Beginner fitness tips:
 - Bodyweight squats (2 sets of 10)
 - Light stretching or yoga`;
 
+      const hasUserMessage = session.history.some(msg => msg.role === "user");
+      if (!hasUserMessage) {
+        session.history.push({ role: "user", parts: "Hi" }); // Dummy user message to satisfy Gemini
+      }
       session.history.push({ role: "model", parts: intro });
       return res.json({ reply: intro });
     }
