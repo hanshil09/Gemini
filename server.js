@@ -43,18 +43,18 @@ const ONBOARDING_QUESTIONS = [
   "What is your weight? (in kg)"
 ];
 
-function isUserInfoComplete(userInfo) {
+function isUserInfoComplete(info) {
   return info.name && info.gender && info.age && info.height && info.weight;
 }
 
 app.post('/chat', async (req, res) => {
-    const {message, sessionID = 'default',caloriesHistory} = req.body;
+    const {message, sessionId = 'default',caloriesHistory} = req.body;
 
     if(!message) {
         return res.status(400).json({error: 'Message is required'});
     }
 
-  if (!sessions[sessionID]) {
+  if (!sessions[sessionId]) {
   sessions[sessionId] = {
       history: [
         { role: "system", parts: BASE_SYSTEM_PROMPT }
