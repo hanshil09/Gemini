@@ -3,7 +3,7 @@
  const express = require('express');
  const bodyParser = require('body-parser');
  const cors = require('cors');
- const axios = require('axios');
+
 
  const { GoogleGenerativeAI } = require("@google/generative-ai");
 
@@ -23,7 +23,7 @@ You are a professional AI fitness coach.
 Only answer fitness, nutrition, exercise, and weight management related questions.
 Ignore all questions unrelated to fitness.
 
-Start every new conversation by asking the following questions one by one:
+Start every new conversation by asking the following questions by making form of it and allowing user to input answer in the form:
 
 1. What is your name?
 2. What is your gender? (Male/Female/Other)
@@ -47,6 +47,7 @@ Once all information is collected:
 
 app.post('/chat', async (req, res) => {
     const {message, caloriesHistory} = req.body;
+
     if(!message) {
         return res.status(400).json({error: 'Message is required'});
     }
