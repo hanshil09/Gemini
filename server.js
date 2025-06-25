@@ -66,17 +66,42 @@ app.post('/chat', async (req, res) => {
     const session = sessions[sessionId];
     if (!isUserInfoComplete(session.userInfo)) {
     // Try to extract key-value data from the message
-    const extractInfo = (key, pattern) => {
-      const match = message.match(pattern);
-      if (match) session.userInfo[key] = match[1];
-    };
+    const userInfo = session.userInfo;
+const words = message.trim().split(/\s+/);
 
-    extractInfo('name', /name\s*is\s*(\w+)/i);
-    extractInfo('gender', /gender\s*is\s*(male|female|other)/i);
-    extractInfo('age', /(\d+)\s*years?\s*old/i);
-    extractInfo('height', /(\d+)\s*cm/i);
-    extractInfo('weight', /(\d+)\s*kg/i);
+if (!userInfo.name) {
+  for (const word of words) {
+    if (/^[A-Z][a-z]+$/.test(word) && !['Male', 'Female', 'Other'].includes(word)) {
+      userInfo.name = word;
+      break;
+    }
+  }
+}
 
+if (!userInfo.gender) {
+  const genderMatch = message.match(/\b(male|female|other)\b/i);
+  if (genderMatch) userInfo.gender = genderMatch[1];
+}
+
+if (!userInfo.age) {
+  const ageMatch = message.match(/(\d{1,3})\s*(years?\s*old)?/i);
+  if (ageMatch) {
+    const age = parseInt(ageMatch[1]);
+    if (age >= 5 && age <= 120) userInfo.age = age;
+  }
+}
+
+if (!userInfo.height) {
+  const heightMatch = message.match(/(\d{2,3})\s*cm/i);
+  if (heightMatch) userInfo.height = parseInt(heightMatch[1]);
+}
+
+if (!userInfo.weight) {
+  const weightMatch = message.match(/(\d{2,3})\s*kg/i);
+  if (weightMatch) userInfo.weight = parseInt(weightMatch[1]);
+}
+
+    
     const missing = ONBOARDING_QUESTIONS.filter(q =>{
       if (q.includes("name"))return !sessions[sessionId].userInfo.name;
       if (q.includes("gender"))return !sessions[sessionId].userInfo.gender;
