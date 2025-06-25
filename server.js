@@ -78,11 +78,11 @@ app.post('/chat', async (req, res) => {
     extractInfo('weight', /(\d+)\s*kg/i);
 
     const missing = ONBOARDING_QUESTIONS.filter(q =>{
-      if (q.includes("name"))return !sessions[sessionID].userInfo.name;
-      if (q.includes("gender"))return !sessions[sessionID].userInfo.gender;
-      if (q.includes("age"))return !sessions[sessionID].userInfo.age;
-      if (q.includes("height"))return !sessions[sessionID].userInfo.height;
-      if (q.includes("weight"))return !sessions[sessionID].userInfo.weight;
+      if (q.includes("name"))return !sessions[sessionId].userInfo.name;
+      if (q.includes("gender"))return !sessions[sessionId].userInfo.gender;
+      if (q.includes("age"))return !sessions[sessionId].userInfo.age;
+      if (q.includes("height"))return !sessions[sessionId].userInfo.height;
+      if (q.includes("weight"))return !sessions[sessionId].userInfo.weight;
       return false;
 
       });
