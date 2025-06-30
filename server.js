@@ -9,6 +9,10 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// CHANGE: Added CORS for Flutter app requests
+const cors = require('cors');
+app.use(cors({ origin: '*' })); // Restrict to Flutter app origin in production
+
 const BASE_SYSTEM_PROMPT = `
 You are a professional AI fitness and nutrition coach. Your role is to provide accurate and helpful advice related to:
 - Exercise & workouts
@@ -18,36 +22,59 @@ You are a professional AI fitness and nutrition coach. Your role is to provide a
 - Fitness habits, beginner tips, and meal planning
 
 Do not answer questions unrelated to fitness, health, food, or exercise. If a question is outside this scope, respond politely: "I'm sorry, I only focus on fitness and nutrition. How can I assist you with your health goals?"
+
+// CHANGE: Added instruction to handle calorie data
+If provided with calorie intake data (caloriesHistory), analyze it and incorporate it into your response, offering advice based on the user's calorie consumption.
 `;
 
 const sessions = {};
 
 app.post('/chat', async (req, res) => {
-  const { message, sessionId = 'default' } = req.body;
+  // CHANGE: Added caloriesHistory to request body
+  const { message, sessionId = 'default', caloriesHistory } = req.body;
 
   if (!message && sessions[sessionId]) {
     return res.status(400).json({ error: 'Message is required for ongoing sessions' });
   }
 
-  if (!sessions[sessionId]) {
-    sessions[sessionId] = { history: [] };
-    const initialPrompt = `
+  const initialPrompt = `
+    ${BASE_SYSTEM_PROMPT}
+
+    Greet a random user warmly as a professional fitness coach and ask a question to start the conversation, such as inquiring about their fitness goals, current exercise routine, or dietary preferences.
+  `;
+
+  // CHANGE: Consolidated prompt logic to include caloriesHistory
+  let prompt;
+  if (caloriesHistory) {
+    prompt = `
       ${BASE_SYSTEM_PROMPT}
 
-      Greet a random user warmly as a professional fitness coach and ask a question to start the conversation, such as inquiring about their fitness goals, current exercise routine, or dietary preferences.
+      Today's calorie intake: ${caloriesHistory} kcal.
+      User message: ${message || 'Provide advice based on my calorie intake.'}
     `;
+  } else {
+    prompt = message ? `${BASE_SYSTEM_PROMPT}\n\nUser message: ${message}` : initialPrompt;
+  }
+
+  // CHANGE: Removed redundant if (!sessions[sessionId]) block
+  if (!sessions[sessionId]) {
+    sessions[sessionId] = { history: [] };
+  }
+
+  // CHANGE: Use prompt with caloriesHistory for new sessions
+  if (sessions[sessionId].history.length === 0) {
     try {
-      console.log("Sending initial prompt to Gemini:", initialPrompt);
+      console.log("Sending initial prompt to Gemini:", prompt);
       const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
-          contents: [{ role: "user", parts: [{ text: initialPrompt }] }],
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
           systemInstruction: { parts: [{ text: BASE_SYSTEM_PROMPT }] }
         },
         { headers: { 'Content-Type': 'application/json' } }
       );
       const reply = response.data.candidates[0].content.parts[0].text || "No response from Gemini.";
-      sessions[sessionId].history.push({ role: "user", parts: [{ text: initialPrompt }] });
+      sessions[sessionId].history.push({ role: "user", parts: [{ text: prompt }] });
       sessions[sessionId].history.push({ role: "model", parts: [{ text: reply }] });
       return res.json({ reply });
     } catch (error) {
@@ -56,14 +83,11 @@ app.post('/chat', async (req, res) => {
     }
   }
 
-  const prompt = `${BASE_SYSTEM_PROMPT}\n\nUser message: ${message}`;
-
-  // Validate and filter history to ensure correct roles
+  // CHANGE: Removed incorrect prompt redefinition
   const validHistory = sessions[sessionId].history.filter(
     msg => msg.role === "user" || msg.role === "model"
   );
 
-  // Ensure alternating roles by removing consecutive user or model roles
   const cleanedHistory = [];
   let lastRole = null;
   for (const msg of validHistory) {
