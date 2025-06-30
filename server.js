@@ -105,7 +105,15 @@ app.post('/chat', async (req, res) => {
       {
         contents: [
           ...cleanedHistory,
-          { role: "user", parts: [{ text: prompt }] }
+          {
+    role: "user",
+    parts: [{
+      
+      text: caloriesHistory
+        ? `${message}\n\n(For reference: today's calorie intake is ${caloriesHistory} kcal.)`
+        : message
+    }]
+  }
         ],
         systemInstruction: { parts: [{ text: BASE_SYSTEM_PROMPT }] }
       },
