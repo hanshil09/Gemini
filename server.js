@@ -9,10 +9,11 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// CHANGE: Added CORS for Flutter app requests
+// ✅ CORS for Flutter app requests
 const cors = require('cors');
-app.use(cors({ origin: '*' })); // Restrict to Flutter app origin in production
+app.use(cors({ origin: '*' })); // NOTE: Use your Flutter app's origin in production
 
+// ✅ Base prompt with calorie instruction
 const BASE_SYSTEM_PROMPT = `
 You are a professional AI fitness and nutrition coach. Your role is to provide accurate and helpful advice related to:
 - Exercise & workouts
@@ -23,14 +24,12 @@ You are a professional AI fitness and nutrition coach. Your role is to provide a
 
 Do not answer questions unrelated to fitness, health, food, or exercise. If a question is outside this scope, respond politely: "I'm sorry, I only focus on fitness and nutrition. How can I assist you with your health goals?"
 
-// CHANGE: Added instruction to handle calorie data
 If provided with calorie intake data (caloriesHistory), analyze it and incorporate it into your response, offering advice based on the user's calorie consumption.
 `;
 
 const sessions = {};
 
 app.post('/chat', async (req, res) => {
-  // CHANGE: Added caloriesHistory to request body
   const { message, sessionId = 'default', caloriesHistory } = req.body;
 
   if (!message && sessions[sessionId]) {
@@ -43,30 +42,30 @@ app.post('/chat', async (req, res) => {
     Greet a random user warmly as a professional fitness coach and ask a question to start the conversation, such as inquiring about their fitness goals, current exercise routine, or dietary preferences.
   `;
 
-  // CHANGE: Consolidated prompt logic to include caloriesHistory
-   const userText = caloriesHistory
+  // ✅ Format calorie history
+  const userText = caloriesHistory
     ? `${message || 'Provide advice based on my calorie intake.'}\n\nMy recent calorie intake history:\n${Object.entries(caloriesHistory)
         .map(([date, val]) => `${date}: ${val} kcal`)
         .join('\n')}`
     : message;
 
-  // CHANGE: Removed redundant if (!sessions[sessionId]) block
   if (!sessions[sessionId]) {
     sessions[sessionId] = { history: [] };
   }
 
-  // CHANGE: Use prompt with caloriesHistory for new sessions
+  // ✅ New session handling
   if (sessions[sessionId].history.length === 0) {
     try {
-      console.log("Sending initial prompt to Gemini:", prompt);
+      console.log("Sending initial prompt to Gemini:", userText || initialPrompt);
       const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          contents: [{ role: "user", parts: [{ text: userText || initialPrompt }] }],
           systemInstruction: { parts: [{ text: BASE_SYSTEM_PROMPT }] }
         },
         { headers: { 'Content-Type': 'application/json' } }
       );
+
       const reply = response.data.candidates[0].content.parts[0].text || "No response from Gemini.";
       sessions[sessionId].history.push({ role: "user", parts: [{ text: userText || initialPrompt }] });
       sessions[sessionId].history.push({ role: "model", parts: [{ text: reply }] });
@@ -77,7 +76,7 @@ app.post('/chat', async (req, res) => {
     }
   }
 
-  // CHANGE: Removed incorrect prompt redefinition
+  // ✅ Continue chat history
   const validHistory = sessions[sessionId].history.filter(
     msg => msg.role === "user" || msg.role === "model"
   );
@@ -92,24 +91,20 @@ app.post('/chat', async (req, res) => {
   }
 
   try {
-    console.log("Sending chat prompt to Gemini:", prompt);
+    console.log("Sending chat prompt to Gemini:", userText);
     console.log("Chat history:", JSON.stringify(cleanedHistory, null, 2));
+
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         contents: [
           ...cleanedHistory,
           {
-    role: "user",
-    parts: [{
-      
-      text: caloriesHistory
-         ? `${message}\n\nMy recent calorie intake history:\n${Object.entries(caloriesHistory)
-      .map(([date, val]) => `${date}: ${val} kcal`)
-      .join('\n')}`
-  : message
-    }]
-  }
+            role: "user",
+            parts: [{
+              text: userText
+            }]
+          }
         ],
         systemInstruction: { parts: [{ text: BASE_SYSTEM_PROMPT }] }
       },
