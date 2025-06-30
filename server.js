@@ -44,17 +44,11 @@ app.post('/chat', async (req, res) => {
   `;
 
   // CHANGE: Consolidated prompt logic to include caloriesHistory
-  let prompt;
-  if (caloriesHistory) {
-    prompt = `
-      ${BASE_SYSTEM_PROMPT}
-
-      Today's calorie intake: ${caloriesHistory} kcal.
-      User message: ${message || 'Provide advice based on my calorie intake.'}
-    `;
-  } else {
-    prompt = message ? `${BASE_SYSTEM_PROMPT}\n\nUser message: ${message}` : initialPrompt;
-  }
+   const userText = caloriesHistory
+    ? `${message || 'Provide advice based on my calorie intake.'}\n\nMy recent calorie intake history:\n${Object.entries(caloriesHistory)
+        .map(([date, val]) => `${date}: ${val} kcal`)
+        .join('\n')}`
+    : message;
 
   // CHANGE: Removed redundant if (!sessions[sessionId]) block
   if (!sessions[sessionId]) {
@@ -74,7 +68,7 @@ app.post('/chat', async (req, res) => {
         { headers: { 'Content-Type': 'application/json' } }
       );
       const reply = response.data.candidates[0].content.parts[0].text || "No response from Gemini.";
-      sessions[sessionId].history.push({ role: "user", parts: [{ text: prompt }] });
+      sessions[sessionId].history.push({ role: "user", parts: [{ text: userText || initialPrompt }] });
       sessions[sessionId].history.push({ role: "model", parts: [{ text: reply }] });
       return res.json({ reply });
     } catch (error) {
@@ -123,7 +117,7 @@ app.post('/chat', async (req, res) => {
     );
 
     const reply = response.data.candidates[0].content.parts[0].text || "No response from Gemini.";
-    sessions[sessionId].history.push({ role: "user", parts: [{ text: prompt }] });
+    sessions[sessionId].history.push({ role: "user", parts: [{ text: userText }] });
     sessions[sessionId].history.push({ role: "model", parts: [{ text: reply }] });
     res.json({ reply });
   } catch (error) {
