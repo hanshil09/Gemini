@@ -9,43 +9,50 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-const SYSTEM_PROMPT = `
-You are a professional AI fitness coach who interacts like a human personal trainer.
+const BASE_SYSTEM_PROMPT = `
+You are a professional AI fitness and nutrition coach. Your role is to provide accurate and helpful advice related to:
+- Exercise & workouts
+- Weight loss, gain, or maintenance
+- Healthy eating and diets
+- Nutritional plans and calorie intake
+- Fitness habits, beginner tips, and meal planning
 
-Your role:
-- Greet the user warmly.
-- Start by explaining you will customize their fitness plan.
-- Then **ask the following questions one by one** and wait for user input after each:
-
-1. What is your name?
-2. What is your gender? (Male/Female/Other)
-3. What is your age in years?
-4. What is your height in centimeters?
-5. What is your weight in kilograms?
-
-After collecting all the data:
-- Calculate BMI.
-- Explain what their BMI means.
-- Give a recommendation: maintain, lose, or gain weight based on BMI & gender.
-- Suggest:
-    a) Daily calorie intake for maintenance
-    b) Calorie deficit plan for safe weight loss (500 kcal less)
-    c) Calorie surplus plan for safe weight gain (500 kcal more)
-- Recommend 2–3 beginner-friendly exercises (e.g., walking, bodyweight workouts).
-- If user sends calorie intake data (e.g., "caloriesHistory"), factor it into your analysis.
-
-Additional rules:
-- ONLY answer questions about fitness, health, exercise, or nutrition.
-- If the user asks unrelated things (e.g., jokes, tech help), politely say you are a fitness-focused AI.
-- Always speak with encouragement and positivity, like a friendly personal trainer.
+Do not answer questions unrelated to fitness, health, food, or exercise. If a question is outside this scope, respond politely: "I'm sorry, I only focus on fitness and nutrition. How can I assist you with your health goals?"
 `;
 
+const sessions = {};
 
 app.post('/chat', async (req, res) => {
-  const { message } = req.body;
+  const { message, sessionId = 'default' } = req.body;
 
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required' });
+  if (!message && sessions[sessionId]) {
+    return res.status(400).json({ error: 'Message is required for ongoing sessions' });
+  }
+
+  if (!sessions[sessionId]) {
+    sessions[sessionId] = { history: [] };
+    const initialPrompt = `
+      ${BASE_SYSTEM_PROMPT}
+
+      Greet a random user warmly as a professional fitness coach and ask a question to start the conversation, such as inquiring about their fitness goals, current exercise routine, or dietary preferences.
+    `;
+    try {
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          contents: [{ parts: [{ text: initialPrompt }] }],
+          systemInstruction: { parts: [{ text: BASE_SYSTEM_PROMPT }] }
+        },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      const reply = response.data.candidates[0].content.parts[0].text || "No response from Gemini.";
+      sessions[sessionId].history.push({ role: "user", parts: [{ text: initialPrompt }] });
+      sessions[sessionId].history.push({ role: "assistant", parts: [{ text: reply }] });
+      return res.json({ reply });
+    } catch (error) {
+      console.error("Error from Gemini API (initial):", error.response?.data || error.message);
+      return res.status(500).json({ error: "Failed to get response from Gemini." });
+    }
   }
 
   const prompt = `${BASE_SYSTEM_PROMPT}\n\nUser message: ${message}`;
@@ -55,20 +62,17 @@ app.post('/chat', async (req, res) => {
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         contents: [
-          {
-            parts: [{ text: prompt }]
-          }
+          ...sessions[sessionId].history,
+          { parts: [{ text: prompt }] }
         ],
         systemInstruction: { parts: [{ text: BASE_SYSTEM_PROMPT }] }
       },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers: { 'Content-Type': 'application/json' } }
     );
 
     const reply = response.data.candidates[0].content.parts[0].text || "No response from Gemini.";
+    sessions[sessionId].history.push({ role: "user", parts: [{ text: prompt }] });
+    sessions[sessionId].history.push({ role: "assistant", parts: [{ text: reply }] });
     res.json({ reply });
   } catch (error) {
     console.error("Error from Gemini API:", error.response?.data || error.message);
