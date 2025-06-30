@@ -110,8 +110,10 @@ app.post('/chat', async (req, res) => {
     parts: [{
       
       text: caloriesHistory
-        ? `${message}\n\n(For reference: today's calorie intake is ${caloriesHistory} kcal.)`
-        : message
+         ? `${message}\n\nMy recent calorie intake history:\n${Object.entries(caloriesHistory)
+      .map(([date, val]) => `${date}: ${val} kcal`)
+      .join('\n')}`
+  : message
     }]
   }
         ],
