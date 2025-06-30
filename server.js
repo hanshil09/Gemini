@@ -128,7 +128,7 @@ app.post('/chat', async (req, res) => {
 
       try {
         const model = genAI.getGenerativeModel({
-          model: "gemini-1.5-flash", // Use a valid model name
+          model: "gemini-2.0-flash", // Use a valid model name
           systemInstruction: BASE_SYSTEM_PROMPT
         });
 
