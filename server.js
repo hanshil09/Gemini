@@ -9,11 +9,13 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// ✅ CORS for Flutter app requests
 const cors = require('cors');
-app.use(cors({ origin: '*' })); // NOTE: Use your Flutter app's origin in production
+app.use(cors({ origin: '*' })); 
 
-// ✅ Base prompt with calorie instruction
+const db = require('./firebase');
+
+
+
 const BASE_SYSTEM_PROMPT = `
 You are a professional AI fitness and nutrition coach. Your role is to provide accurate and helpful advice related to:
 - Exercise & workouts
@@ -30,7 +32,20 @@ If provided with calorie intake data (caloriesHistory), analyze it and incorpora
 const sessions = {};
 
 app.post('/chat', async (req, res) => {
-  const { message, sessionId = 'default', caloriesHistory } = req.body;
+ const { message, sessionId = 'default', userId } = req.body;
+
+
+let caloriesHistory = null;
+
+if (userId) {
+  try {
+    const snapshot = await db.ref(`users/${userId}/calories`).once('value');
+    caloriesHistory = snapshot.val();
+  } catch (err) {
+    console.error("Error fetching calories from Firebase:", err);
+  }
+}
+
 
   if (!message && sessions[sessionId]) {
     return res.status(400).json({ error: 'Message is required for ongoing sessions' });
@@ -42,18 +57,21 @@ app.post('/chat', async (req, res) => {
     Greet a random user warmly as a professional fitness coach and ask a question to start the conversation, such as inquiring about their fitness goals, current exercise routine, or dietary preferences.
   `;
 
-  // ✅ Format calorie history
-  const userText = caloriesHistory
-    ? `${message || 'Provide advice based on my calorie intake.'}\n\nMy recent calorie intake history:\n${Object.entries(caloriesHistory)
-        .map(([date, val]) => `${date}: ${val} kcal`)
-        .join('\n')}`
-    : message;
+  //  format calorie history
+ let userText;
 
+if (caloriesHistory) {
+  userText = `${message || 'Provide advice based on my calorie intake.'}\n\nMy recent calorie intake history:\n${Object.entries(caloriesHistory)
+    .map(([date, val]) => `${date}: ${val} kcal`)
+    .join('\n')}`;
+} else {
+  userText = message;
+}
   if (!sessions[sessionId]) {
     sessions[sessionId] = { history: [] };
   }
 
-  // ✅ New session handling
+  //  new session handling
   if (sessions[sessionId].history.length === 0) {
     try {
       console.log("Sending initial prompt to Gemini:", userText || initialPrompt);
@@ -76,7 +94,7 @@ app.post('/chat', async (req, res) => {
     }
   }
 
-  // ✅ Continue chat history
+  // continue chat history
   const validHistory = sessions[sessionId].history.filter(
     msg => msg.role === "user" || msg.role === "model"
   );
