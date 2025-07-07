@@ -12,7 +12,7 @@ app.use(express.json());
 const cors = require('cors');
 app.use(cors({ origin: '*' })); 
 
-const db = require('./firebase');
+
 
 
 
@@ -26,25 +26,15 @@ You are a professional AI fitness and nutrition coach. Your role is to provide a
 
 Do not answer questions unrelated to fitness, health, food, or exercise. If a question is outside this scope, respond politely: "I'm sorry, I only focus on fitness and nutrition. How can I assist you with your health goals?"
 
-If provided with calorie intake data (caloriesHistory), analyze it and incorporate it into your response, offering advice based on the user's calorie consumption.
 `;
 
 const sessions = {};
 
 app.post('/chat', async (req, res) => {
- const { message, sessionId = 'default', userId } = req.body;
+ const { message, sessionId = 'default'} = req.body;
 
 
-let caloriesHistory = null;
 
-if (userId) {
-  try {
-    const snapshot = await db.ref(`users/${userId}/calories`).once('value');
-    caloriesHistory = snapshot.val();
-  } catch (err) {
-    console.error("Error fetching calories from Firebase:", err);
-  }
-}
 
 
   if (!message && sessions[sessionId]) {
@@ -57,16 +47,9 @@ if (userId) {
     Greet a random user warmly as a professional fitness coach and ask a question to start the conversation, such as inquiring about their fitness goals, current exercise routine, or dietary preferences.
   `;
 
-  //  format calorie history
- let userText;
 
-if (caloriesHistory) {
-  userText = `${message || 'Provide advice based on my calorie intake.'}\n\nMy recent calorie intake history:\n${Object.entries(caloriesHistory)
-    .map(([date, val]) => `${date}: ${val} kcal`)
-    .join('\n')}`;
-} else {
-  userText = message;
-}
+ let userText =message;
+
   if (!sessions[sessionId]) {
     sessions[sessionId] = { history: [] };
   }
